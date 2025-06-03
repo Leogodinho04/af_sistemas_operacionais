@@ -6,6 +6,63 @@ from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
 
 arquivo_teste = "exemplo_thundercsv.xlsx"
 
+def detectar_outliers(df: pd.DataFrame, metodo: str = "IQR", colunas: list = None) -> pd.DataFrame:
+    """
+    Detecta outliers nas colunas numéricas de um DataFrame usando IQR ou Z-Score,
+    e retorna também estatísticas resumidas dos outliers.
+
+    Parâmetros:
+        df (pd.DataFrame): DataFrame com os dados.
+        metodo (str): "IQR" ou "Z-Score".
+        colunas (list): Lista de colunas a analisar (opcional).
+
+    Retorno:
+        tuple:
+            - pd.DataFrame: DataFrame com colunas extras indicando outliers.
+            - dict: Estatísticas dos outliers por coluna (quantidade e percentual).
+    """
+    df_out = df.copy()
+    if colunas is None:
+        colunas = df.select_dtypes(include='number').columns 
+
+    estatisticas_outliers = {}
+
+    for coluna in colunas:
+        if coluna not in df.columns:
+            continue 
+
+        if metodo == "IQR":
+            # Define como outlier qualquer valor muito abaixo do primeiro quartil (Q1) ou muito acima do terceiro quartil (Q3)
+            q1 = df[coluna].quantile(0.25)
+            q3 = df[coluna].quantile(0.75)
+            iqr = q3 - q1
+            lim_inf = q1 - 1.5 * iqr
+            lim_sup = q3 + 1.5 * iqr
+            outliers = (df[coluna] < lim_inf) | (df[coluna] > lim_sup)
+
+        elif metodo == "Z-Score":
+            # Define como outlier qualquer valor muito distante da média
+            media = df[coluna].mean()
+            desvio = df[coluna].std()
+            z_score = (df[coluna] - media) / desvio
+            outliers = z_score.abs() > 3
+
+        else:
+            raise ValueError("Método inválido. Use 'IQR' ou 'Z-Score'.")
+
+        # Marca no DataFrame
+        df_out[f"{coluna}_outlier"] = outliers
+
+        # Salva estatísticas
+        quantidade = outliers.sum()
+        percentual = round(quantidade / len(df) * 100, 2)
+        estatisticas_outliers[coluna] = {
+            "quantidade_outliers": int(quantidade),
+            "percentual_outliers": percentual
+        }
+
+    return df_out, estatisticas_outliers
+
 def calcular_estatisticas(df: pd.DataFrame) -> dict:
     """
     Calcula estatísticas básicas (média, soma, mínimo, máximo, contagem)
