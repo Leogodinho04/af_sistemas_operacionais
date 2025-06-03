@@ -1,9 +1,39 @@
 
+import pandas as pd
 from pathlib import Path
 import tkinter as tk
 from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
 
+arquivo_teste = "exemplo_thundercsv.xlsx"
+
+def calcular_estatisticas(df: pd.DataFrame) -> dict:
+    """
+    Calcula estatísticas básicas (média, soma, mínimo, máximo, contagem)
+    para cada coluna numérica do DataFrame.
+
+    Parâmetros:
+        df (pd.DataFrame): DataFrame com os dados filtrados.
+
+    Retorno:
+        dict: Dicionário contendo as estatísticas por coluna.
+    """
+    estatisticas = {}
+    colunas_numericas = df.select_dtypes(include='number').columns
+
+    for coluna in colunas_numericas:
+        dados = df[coluna]
+        estatisticas[coluna] = {
+            'media': dados.mean(),
+            'soma': dados.sum(),
+            'minimo': dados.min(),
+            'maximo': dados.max(),
+            'contagem': dados.count()
+        }
+
+    return estatisticas
+
 def iniciar_interface():
+    global entry_1
 
     OUTPUT_PATH = Path(__file__).parent
     ASSETS_PATH = OUTPUT_PATH / "build" / "assets" / "frame0"
