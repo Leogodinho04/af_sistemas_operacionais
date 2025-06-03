@@ -1,5 +1,6 @@
 
 from pathlib import Path
+import tkinter as tk
 from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
 
 def iniciar_interface():
@@ -11,16 +12,16 @@ def iniciar_interface():
         return ASSETS_PATH / Path(path)
 
 
-    window = Tk()
+    root = Tk()
 
-    window.title("ThunderCSV - Processador de Arquivos")
-    window.iconbitmap(relative_to_assets("thunder_csv.ico"))
-    window.geometry("666x470")
-    window.configure(bg = "#1E1E1E")
+    root.title("ThunderCSV - Processador de Arquivos")
+    root.iconbitmap(relative_to_assets("thunder_csv.ico"))
+    root.geometry("666x470")
+    root.configure(bg = "#1E1E1E")
 
     # Fundo da interface
     canvas = Canvas(
-        window,
+        root,
         bg = "#1E1E1E",
         height = 470,
         width = 666,
@@ -86,6 +87,32 @@ def iniciar_interface():
         height=17.0
     )
 
+    # Diretório p/ salvar
+    canvas.create_text(
+        385.0,
+        125.0,
+        anchor="nw",
+        text="Diretório para salvar relatórios",
+        fill="#FFFFFF",
+        font=("Jersey 20", 16 * -1)
+    )
+
+    button_image_3 = PhotoImage(
+        file=relative_to_assets("button_3.png"))
+    button_3 = Button(
+        image=button_image_3,
+        borderwidth=0,
+        highlightthickness=0,
+        command=lambda: print("button_3 clicked"),
+        relief="flat"
+    )
+    button_3.place(
+        x=585.0,
+        y=124.0,
+        width=58.0,
+        height=17.0
+    )
+
     # Campo texto para escolher as colunas
     canvas.create_text(
         24.0,
@@ -117,7 +144,7 @@ def iniciar_interface():
         height=18.0
     )
 
-    # 
+    # Detecção de outliers
     canvas.create_text(
         24.0,
         240.0,
@@ -127,8 +154,205 @@ def iniciar_interface():
         font=("Jersey 20", 16 * -1)
     )
 
-    
+    metodo_outlier = tk.StringVar(value="")
 
+    radio_iqr = tk.Radiobutton(
+        root,
+        text="IQR",
+        variable=metodo_outlier,
+        value="IQR",
+        bg="#1E1E1E",
+        activebackground="#1E1E1E",
+        fg="#E1E6ED",
+        selectcolor="#1E1E1E",
+        font=("Jersey 10", 16 * -1),
+        highlightthickness=0
+    )
+    radio_iqr.place(x=20, y=269)
+
+    radio_z = tk.Radiobutton(
+        root,
+        text="Z-Score",
+        variable=metodo_outlier,
+        value="Z-Score",
+        bg="#1E1E1E",
+        activebackground="#1E1E1E",
+        fg="#E1E6ED",
+        selectcolor="#1E1E1E",
+        font=("Jersey 10", 16 * -1),
+        highlightthickness=0
+    )
+    radio_z.place(x=100, y=269)
+
+    # Tipos de relatórios
+    canvas.create_text(
+        24.0,
+        316.0,
+        anchor="nw",
+        text="Escolha os tipos de relatório a gerar",
+        fill="#FFFFFF",
+        font=("Jersey 20", 16 * -1)
+    )
+
+    canvas.create_text(
+        46.0,
+        343.0,
+        anchor="nw",
+        text="CSV",
+        fill="#E1E6ED",
+        font=("Jersey 10", 16 * -1)
+    )
+    var_csv = tk.BooleanVar(value=False)
+    checkbox_csv = tk.Checkbutton(
+        root,
+        variable=var_csv,
+        onvalue=True,
+        offvalue=False,
+        bg="#1E1E1E",
+        activebackground="#1E1E1E",
+        highlightthickness=0,
+        relief="flat"
+    )
+    checkbox_csv.place(x=20, y=340)
+
+    canvas.create_text(
+        126.0,
+        343.0,
+        anchor="nw",
+        text="Excel (.xlsx)",
+        fill="#E1E6ED",
+        font=("Jersey 10", 16 * -1)
+    )
+    var_excel = tk.BooleanVar(value=False)
+    checkbox_excel = tk.Checkbutton(
+        root,
+        variable=var_excel,
+        onvalue=True,
+        offvalue=False,
+        bg="#1E1E1E",
+        activebackground="#1E1E1E",
+        highlightthickness=0,
+        relief="flat"
+    )
+    checkbox_excel.place(x=100, y=340)
+
+    canvas.create_text(
+        234.0,
+        343.0,
+        anchor="nw",
+        text="PDF c/ gráficos",
+        fill="#E1E6ED",
+        font=("Jersey 10", 16 * -1)
+    )
+    var_pdf = tk.BooleanVar(value=False)
+    checkbox_pdf = tk.Checkbutton(
+        root,
+        variable=var_pdf,
+        onvalue=True,
+        offvalue=False,
+        bg="#1E1E1E",
+        activebackground="#1E1E1E",
+        highlightthickness=0,
+        relief="flat"
+    )
+    checkbox_pdf.place(x=208, y=340)
+
+    # Gerar gráficos
+    canvas.create_text(
+        24.0,
+        380.0,
+        anchor="nw",
+        text="Gerar gráficos",
+        fill="#FFFFFF",
+        font=("Jersey 20", 16 * -1)
+    )
+
+    canvas.create_text(
+        46.0,
+        406.0,
+        anchor="nw",
+        text="Boxplot",
+        fill="#E1E6ED",
+        font=("Jersey 10", 16 * -1)
+    )
+    var_boxplot = tk.BooleanVar(value=False)
+    checkbox_boxplot = tk.Checkbutton(
+        root,
+        variable=var_boxplot,
+        onvalue=True,
+        offvalue=False,
+        bg="#1E1E1E",
+        activebackground="#1E1E1E",
+        highlightthickness=0,
+        relief="flat"
+    )
+    checkbox_boxplot.place(x=20, y=403)
+
+    canvas.create_text(
+        126.0,
+        406.0,
+        anchor="nw",
+        text="Histograma",
+        fill="#E1E6ED",
+        font=("Jersey 10", 16 * -1)
+    )
+    var_histograma = tk.BooleanVar(value=False)
+    checkbox_histograma = tk.Checkbutton(
+        root,
+        variable=var_histograma,
+        onvalue=True,
+        offvalue=False,
+        bg="#1E1E1E",
+        activebackground="#1E1E1E",
+        highlightthickness=0,
+        relief="flat"
+    )
+    checkbox_histograma.place(x=100, y=403)
+
+    canvas.create_text(
+        234.0,
+        406.0,
+        anchor="nw",
+        text="Barras",
+        fill="#E1E6ED",
+        font=("Jersey 10", 16 * -1)
+    )
+    var_barras = tk.BooleanVar(value=False)
+    checkbox_barras = tk.Checkbutton(
+        root,
+        variable=var_barras,
+        onvalue=True,
+        offvalue=False,
+        bg="#1E1E1E",
+        activebackground="#1E1E1E",
+        highlightthickness=0,
+        relief="flat"
+    )
+    checkbox_barras.place(x=208, y=403)
+
+    # Ativar logging de execução
+    canvas.create_text(
+        455.0,
+        318.0,
+        anchor="nw",
+        text="Ativar logging de execução",
+        fill="#E1E6ED",
+        font=("Jersey 10", 14 * -1)
+    )
+    var_logging = tk.BooleanVar(value=False)
+    checkbox_logging = tk.Checkbutton(
+        root,
+        variable=var_logging,
+        onvalue=True,
+        offvalue=False,
+        bg="#1E1E1E",
+        activebackground="#1E1E1E",
+        highlightthickness=0,
+        relief="flat"
+    )
+    checkbox_logging.place(x=429, y=314)
+    
+    # Iniciar processamento
     button_image_2 = PhotoImage(
         file=relative_to_assets("button_2.png"))
     button_2 = Button(
@@ -145,31 +369,7 @@ def iniciar_interface():
         height=23.0
     )
 
-    canvas.create_text(
-        385.0,
-        125.0,
-        anchor="nw",
-        text="Diretório para salvar relatórios",
-        fill="#FFFFFF",
-        font=("Jersey 20", 16 * -1)
-    )
-
-    button_image_3 = PhotoImage(
-        file=relative_to_assets("button_3.png"))
-    button_3 = Button(
-        image=button_image_3,
-        borderwidth=0,
-        highlightthickness=0,
-        command=lambda: print("button_3 clicked"),
-        relief="flat"
-    )
-    button_3.place(
-        x=585.0,
-        y=124.0,
-        width=58.0,
-        height=17.0
-    )
-
+    # Cancelar
     button_image_4 = PhotoImage(
         file=relative_to_assets("button_4.png"))
     button_4 = Button(
@@ -186,15 +386,7 @@ def iniciar_interface():
         height=17.0
     )
 
-    canvas.create_text(
-        39.0,
-        269.0,
-        anchor="nw",
-        text="IQR",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
+    # Barra de progresso
     canvas.create_rectangle(
         410.0,
         381.0,
@@ -202,237 +394,9 @@ def iniciar_interface():
         395.0,
         fill="#CCCCCC",
         outline="")
-
-    canvas.create_rectangle(
-        24.0,
-        269.0,
-        39.0,
-        284.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_text(
-        119.0,
-        269.0,
-        anchor="nw",
-        text="Z-Score",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_rectangle(
-        104.0,
-        269.0,
-        119.0,
-        284.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_text(
-        24.0,
-        316.0,
-        anchor="nw",
-        text="Escolha os tipos de relatório a gerar",
-        fill="#FFFFFF",
-        font=("Jersey 20", 16 * -1)
-    )
-
-    canvas.create_text(
-        39.0,
-        344.0,
-        anchor="nw",
-        text="CSV",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_rectangle(
-        24.0,
-        344.0,
-        39.0,
-        359.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_text(
-        122.0,
-        344.0,
-        anchor="nw",
-        text="Excel (.xlsx)",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_rectangle(
-        104.0,
-        344.0,
-        119.0,
-        359.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_text(
-        24.0,
-        316.0,
-        anchor="nw",
-        text="Escolha os tipos de relatório a gerar",
-        fill="#FFFFFF",
-        font=("Jersey 20", 16 * -1)
-    )
-
-    canvas.create_text(
-        39.0,
-        344.0,
-        anchor="nw",
-        text="CSV",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_rectangle(
-        24.0,
-        344.0,
-        39.0,
-        359.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_text(
-        122.0,
-        344.0,
-        anchor="nw",
-        text="Excel (.xlsx)",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_rectangle(
-        104.0,
-        344.0,
-        119.0,
-        359.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_text(
-        223.0,
-        344.0,
-        anchor="nw",
-        text="PDF c/ gráficos",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_rectangle(
-        208.0,
-        344.0,
-        223.0,
-        359.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_text(
-        24.0,
-        380.0,
-        anchor="nw",
-        text="Gerar gráficos",
-        fill="#FFFFFF",
-        font=("Jersey 20", 16 * -1)
-    )
-
-    canvas.create_text(
-        42.0,
-        408.0,
-        anchor="nw",
-        text="Boxplot",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_text(
-        122.0,
-        407.0,
-        anchor="nw",
-        text="Histograma",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_rectangle(
-        24.0,
-        408.0,
-        39.0,
-        423.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_rectangle(
-        104.0,
-        408.0,
-        119.0,
-        423.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_rectangle(
-        24.0,
-        408.0,
-        39.0,
-        423.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_rectangle(
-        104.0,
-        408.0,
-        119.0,
-        423.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_text(
-        433.0,
-        313.0,
-        anchor="nw",
-        text="Ativar logging de execução",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_rectangle(
-        422.0,
-        314.0,
-        437.0,
-        329.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_rectangle(
-        422.0,
-        314.0,
-        437.0,
-        329.0,
-        fill="#D9D9D9",
-        outline="")
-
-    canvas.create_text(
-        223.0,
-        408.0,
-        anchor="nw",
-        text="Barras",
-        fill="#E1E6ED",
-        font=("Jersey 10", 16 * -1)
-    )
-
-    canvas.create_rectangle(
-        208.0,
-        408.0,
-        223.0,
-        423.0,
-        fill="#D9D9D9",
-        outline="")
-    window.resizable(False, False)
-    window.mainloop()
+    
+    root.resizable(False, False)
+    root.mainloop()
 
 if __name__ == "__main__":
     iniciar_interface()
