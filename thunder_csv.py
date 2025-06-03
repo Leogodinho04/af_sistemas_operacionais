@@ -1,8 +1,14 @@
 
 import pandas as pd
+import matplotlib.pyplot as plt
+import os
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from tempfile import NamedTemporaryFile
 from pathlib import Path
 import tkinter as tk
-from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
+from tkinter import Tk, Canvas, Entry, Button, PhotoImage
 
 arquivo_teste = "exemplo_thundercsv.xlsx"
 
@@ -88,6 +94,67 @@ def calcular_estatisticas(df: pd.DataFrame) -> dict:
         }
 
     return estatisticas
+
+def gerar_graficos_pdf(df: pd.DataFrame, opcoes: dict, pasta_saida: str, nome_pdf: str = "relatorio_graficos.pdf"):
+    """
+    Gera gráficos com base nas opções e insere todos em um PDF salvo na pasta de saída.
+
+    Parâmetros:
+        df (pd.DataFrame): Dados a serem usados nos gráficos.
+        opcoes (dict): Dicionário com opções de gráfico (ex: {"boxplot": True, "hist": False}).
+        pasta_saida (str): Caminho onde o PDF será salvo.
+        nome_pdf (str): Nome do arquivo PDF de saída.
+
+    Retorno:
+        None
+    """
+    colunas_numericas = df.select_dtypes(include='number').columns
+    pdf_path = os.path.join(pasta_saida, nome_pdf)
+
+    doc = SimpleDocTemplate(pdf_path, pagesize=A4)
+    elementos = []
+    styles = getSampleStyleSheet()
+
+    for coluna in colunas_numericas:
+        if coluna.endswith("_outlier"):
+            continue
+
+        elementos.append(Paragraph(f"Gráficos da coluna: {coluna}", styles['Heading2']))
+        elementos.append(Spacer(1, 12))
+
+        if opcoes.get("boxplot"):
+            with NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                plt.figure()
+                plt.boxplot(df[coluna].dropna())
+                plt.title(f"Boxplot - {coluna}")
+                plt.savefig(tmp.name)
+                plt.close()
+                elementos.append(RLImage(tmp.name, width=400, height=300))
+                elementos.append(Spacer(1, 12))
+
+        if opcoes.get("hist"):
+            with NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                plt.figure()
+                plt.hist(df[coluna].dropna(), bins=10, color="skyblue", edgecolor="black")
+                plt.title(f"Histograma - {coluna}")
+                plt.savefig(tmp.name)
+                plt.close()
+                elementos.append(RLImage(tmp.name, width=400, height=300))
+                elementos.append(Spacer(1, 12))
+
+        if opcoes.get("bar"):
+            with NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                plt.figure()
+                df[coluna].value_counts().sort_index().plot(kind="bar", color="lightgreen", edgecolor="black")
+                plt.title(f"Gráfico de Barras - {coluna}")
+                plt.tight_layout()
+                plt.savefig(tmp.name)
+                plt.close()
+                elementos.append(RLImage(tmp.name, width=400, height=300))
+                elementos.append(Spacer(1, 12))
+
+    doc.build(elementos)
+    print(f"PDF com gráficos salvo em: {pdf_path}")
 
 def iniciar_interface():
     global entry_1
