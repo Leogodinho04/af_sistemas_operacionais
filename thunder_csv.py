@@ -1,4 +1,5 @@
 
+from typing import List, Tuple
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
@@ -11,6 +12,174 @@ import tkinter as tk
 from tkinter import Tk, Canvas, Entry, Button, PhotoImage
 
 arquivo_teste = "exemplo_thundercsv.xlsx"
+
+def carregar_arquivo_csv(file_path: str) -> pd.DataFrame | None:
+    """
+    Lê um arquivo CSV e retorna um DataFrame do pandas.
+    Trata erros comuns de leitura de CSV.
+
+    Args:
+        file_path (str): O caminho completo para o arquivo CSV.
+
+    Returns:
+        pd.DataFrame | None: O DataFrame lido ou None se houver um erro.
+    """
+    if not os.path.exists(file_path):
+        print(f"Erro: O arquivo não foi encontrado no caminho '{file_path}'.")
+        return None
+    
+    if not os.path.isfile(file_path):
+        print(f"Erro: O caminho '{file_path}' não aponta para um arquivo válido.")
+        return None
+
+    try:
+        df = pd.read_csv(file_path)
+        print(f"Arquivo '{os.path.basename(file_path)}' lido com sucesso.")
+        return df
+    except pd.errors.EmptyDataError:
+        print(f"Erro: O arquivo '{os.path.basename(file_path)}' está vazio.")
+        return None
+    except pd.errors.ParserError as e:
+        print(f"Erro de parsing no arquivo '{os.path.basename(file_path)}': {e}")
+        print("Verifique se o arquivo está bem formatado e se o delimitador está correto (geralmente vírgula).")
+        return None
+    except Exception as e:
+        print(f"Um erro inesperado ocorreu ao ler o arquivo '{os.path.basename(file_path)}': {e}")
+        return None
+
+def validar_estrutura_dados(df: pd.DataFrame, colunas_numericas_esperadas: List[str] = None, interromper_em_erro: bool = False) -> Tuple[bool, pd.DataFrame]:
+    """
+    Valida a estrutura de um DataFrame, verificando tipos de dados, valores nulos e inconsistências.
+    Pode, opcionalmente, interromper o processo ou tentar converter colunas.
+
+    Args:
+        df (pd.DataFrame): O DataFrame a ser validado.
+        colunas_numericas_esperadas (List[str], opcional): Uma lista de nomes de colunas que se espera que sejam numéricas.
+                                                         Se None, todas as colunas serão verificadas quanto a nulos/tipos.
+        interromper_em_erro (bool): Se True, a função retorna (False, None) e imprime uma mensagem de erro
+                                     se houver alguma inconsistência grave (nulos em colunas esperadas como numéricas
+                                     ou falha na conversão). Se False, tenta prosseguir e corrigir.
+
+    Returns:
+        Tuple[bool, pd.DataFrame]: Uma tupla contendo:
+                                   - bool: True se a validação passar (ou se erros forem tratados), False caso contrário.
+                                   - pd.DataFrame: O DataFrame potencialmente limpo ou modificado, ou None se a validação falhar e 'interromper_em_erro' for True.
+    """
+    print("\n--- Iniciando validação da estrutura dos dados ---")
+    valido = True
+    df_copia = df.copy() # Trabalha em uma cópia para não alterar o DataFrame original diretamente
+    
+    # 1. Verifica a presença de colunas numéricas esperadas
+    if colunas_numericas_esperadas:
+        for col in colunas_numericas_esperadas:
+            if col not in df_copia.columns:
+                print(f"Aviso: Coluna numérica esperada '{col}' não encontrada no DataFrame.")
+                if interromper_em_erro:
+                    print("Processo interrompido devido à coluna numérica esperada não encontrada.")
+                    return False, None
+                continue # Pula para a próxima coluna se não encontrada
+
+            # Tenta converter a coluna para tipo numérico
+            # 'coerce' transforma valores não numéricos em NaN (Not a Number)
+            df_copia[col] = pd.to_numeric(df_copia[col], errors='coerce')
+            
+            # Verifica se a conversão resultou em muitos NaNs (indicando valores não numéricos)
+            # Um limite razoável para a proporção de NaNs para considerar a coluna numérica corrompida.
+            # Aqui, consideramos que se mais de 20% da coluna se tornou NaN após a coerção, há um problema.
+            na_count = df_copia[col].isnull().sum()
+            if na_count > 0:
+                total_rows = len(df_copia[col])
+                if total_rows > 0:
+                    na_percentage = (na_count / total_rows) * 100
+                    print(f"Alerta: Coluna '{col}' contém {na_count} ({na_percentage:.2f}%) valores não numéricos que foram convertidos para NaN.")
+                else:
+                     print(f"Alerta: Coluna '{col}' contém {na_count} valores não numéricos que foram convertidos para NaN (DataFrame vazio).")
+
+                if na_percentage > 20 and interromper_em_erro: # Exemplo: se mais de 20% for NaN
+                    print(f"Erro: Coluna '{col}' tem alta proporção de valores não numéricos. Interrompendo processo.")
+                    return False, None
+                
+                # Opcional: preencher NaNs com a média ou 0, ou remover as linhas
+                # df_copia[col].fillna(df_copia[col].mean(), inplace=True) # Preenche com a média
+                # df_copia.dropna(subset=[col], inplace=True) # Remove linhas com NaN nessa coluna
+    
+    # 2. Verifica valores nulos em todas as colunas
+    nulos_por_coluna = df_copia.isnull().sum()
+    colunas_com_nulos = nulos_por_coluna[nulos_por_coluna > 0]
+
+    if not colunas_com_nulos.empty:
+        print("\nColunas com valores nulos:")
+        print(colunas_com_nulos)
+        valido = False # Há nulos, então a validação não é perfeita
+        
+        # Estratégia de tratamento de nulos:
+        # Você pode optar por:
+        # a) Remover linhas com nulos: df_copia.dropna(inplace=True)
+        # b) Preencher nulos: df_copia.fillna(value=0, inplace=True) ou df_copia.fillna(df_copia.mean(), inplace=True)
+        # c) Interromper se for crítico
+        
+        # Exemplo: Se há nulos em colunas que eram esperadas como numéricas e a flag de interrupção está ativada
+        if interromper_em_erro and colunas_numericas_esperadas:
+             for col_num_esperada in colunas_numericas_esperadas:
+                 if col_num_esperada in colunas_com_nulos.index:
+                     print(f"Erro: Valores nulos encontrados na coluna numérica esperada '{col_num_esperada}'. Interrompendo processo.")
+                     return False, None
+        
+        print("Aviso: Valores nulos detectados. Considere tratá-los (remoção, preenchimento, etc.) antes da análise.")
+    else:
+        print("Nenhum valor nulo encontrado em todo o DataFrame.")
+
+    # 3. Verifica tipos inconsistentes (após a coerção para numéricos)
+    print("\nTipos de dados atuais das colunas:")
+    print(df_copia.dtypes)
+
+    # Verifica se há 'object' dtypes em colunas que deveriam ser numéricas
+    if colunas_numericas_esperadas:
+        for col in colunas_numericas_esperadas:
+            if col in df_copia.columns and not pd.api.types.is_numeric_dtype(df_copia[col]):
+                print(f"Erro: Coluna '{col}' ainda não é numérica após tentativa de conversão. Tipo atual: {df_copia[col].dtype}")
+                valido = False
+                if interromper_em_erro:
+                    print("Processo interrompido devido a tipo de dado inconsistente em coluna numérica esperada.")
+                    return False, None
+    
+    if valido:
+        print("\nValidação da estrutura dos dados concluída: OK.")
+    else:
+        print("\nValidação da estrutura dos dados concluída: COM AVISOS/ERROS. Verifique as mensagens acima.")
+    
+    return valido, df_copia
+
+def filtrar_colunas(df: pd.DataFrame, colunas_escolhidas: List[str]) -> pd.DataFrame | None:
+    """
+    Filtra um DataFrame, mantendo apenas as colunas especificadas.
+    Gera uma mensagem de erro se alguma coluna não existir no DataFrame.
+
+    Args:
+        df (pd.DataFrame): O DataFrame original.
+        colunas_escolhidas (List[str]): Uma lista com os nomes das colunas a serem selecionadas.
+
+    Returns:
+        pd.DataFrame | None: Um novo DataFrame contendo apenas as colunas escolhidas,
+                             ou None se alguma coluna especificada não for encontrada.
+    """
+    if not colunas_escolhidas:
+        print("Aviso: Nenhuma coluna foi escolhida para filtragem. O DataFrame original será retornado.")
+        return df
+
+    # Verifica se todas as colunas escolhidas existem no DataFrame
+    colunas_existentes = df.columns.tolist()
+    colunas_nao_encontradas = [col for col in colunas_escolhidas if col not in colunas_existentes]
+
+    if colunas_nao_encontradas:
+        print(f"Erro: As seguintes colunas não foram encontradas no arquivo: {', '.join(colunas_nao_encontradas)}")
+        print(f"Colunas disponíveis no arquivo: {', '.join(colunas_existentes)}")
+        return None
+    
+    # Seleciona apenas as colunas escolhidas
+    df_filtrado = df[colunas_escolhidas]
+    print(f"Colunas '{', '.join(colunas_escolhidas)}' selecionadas com sucesso.")
+    return df_filtrado
 
 def detectar_outliers(df: pd.DataFrame, metodo: str = "IQR", colunas: list = None) -> pd.DataFrame:
     """
