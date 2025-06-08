@@ -1,6 +1,7 @@
 
 from typing import List, Tuple
 import pandas as pd
+import logging
 import matplotlib.pyplot as plt
 import os
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
@@ -9,9 +10,18 @@ from reportlab.lib.styles import getSampleStyleSheet
 from tempfile import NamedTemporaryFile
 from pathlib import Path
 import tkinter as tk
-from tkinter import Tk, Canvas, Entry, Button, PhotoImage
+from tkinter import Tk, Canvas, Entry, Button, PhotoImage, messagebox
 
 arquivo_teste = "exemplo_thundercsv.xlsx"
+
+
+
+def configurar_logging():
+    logging.basicConfig(
+        filename='execucao_thundercsv.log',
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
 def carregar_arquivo_csv(file_path: str) -> pd.DataFrame | None:
     """
@@ -145,6 +155,7 @@ def validar_estrutura_dados(df: pd.DataFrame, colunas_numericas_esperadas: List[
     
     if valido:
         print("\nValidação da estrutura dos dados concluída: OK.")
+        messagebox.showinfo("Sucesso", "Validação da estrutura dos dados concluída")
     else:
         print("\nValidação da estrutura dos dados concluída: COM AVISOS/ERROS. Verifique as mensagens acima.")
     
@@ -325,6 +336,69 @@ def gerar_graficos_pdf(df: pd.DataFrame, opcoes: dict, pasta_saida: str, nome_pd
     doc.build(elementos)
     print(f"PDF com gráficos salvo em: {pdf_path}")
 
+def exportar_excel(df: pd.DataFrame, caminho: str):
+    try:
+        df.to_excel(caminho, index=False)
+        print(f"Excel salvo em: {caminho}")
+        messagebox.showinfo("Sucesso", "Excel salvo com sucesso!")
+        logging.info(f"Relatório CSV exportado para: {caminho}")
+    except Exception as e:
+        logging.error(f"Erro ao exportar CSV: {e}")
+        messagebox.showerror("Erro", f"Erro ao salvar Excel: {e}")
+
+def exportar_csv(df: pd.DataFrame, caminho: str):
+    try:
+        df.to_csv(caminho, index=False)
+        print(f"CSV salvo em: {caminho}")
+        logging.info(f"Relatório Excel exportado para: {caminho}")
+        messagebox.showinfo("Sucesso", "CSV salvo com sucesso!")
+    except Exception as e:
+        logging.error(f"Erro ao exportar Excel: {e}")
+        messagebox.showerror("Erro", f"Erro ao salvar CSV: {e}")
+
+def iniciar_processamento():
+    caminho_csv = filedialog.askopenfilename(title="Selecione o CSV")  # ou usar variável
+    caminho_saida = filedialog.askdirectory(title="Selecione a pasta de saída")
+
+    colunas = entry_1.get().split(",")
+    metodo = metodo_outlier.get()
+    opcoes_graficos = {
+        "boxplot": var_boxplot.get(),
+        "hist": var_histograma.get(),
+        "bar": var_barras.get()
+    }
+
+    if var_logging.get():
+        configurar_logging()
+        logging.info("Execução iniciada.")
+
+    df = carregar_arquivo_csv(caminho_csv)
+    if df is None:
+        return
+
+    valido, df = validar_estrutura_dados(df, colunas, interromper_em_erro=True)
+    if not valido:
+        return
+
+    df = filtrar_colunas(df, colunas)
+    if df is None:
+        return
+
+    df, stats_outliers = detectar_outliers(df, metodo, colunas)
+    stats = calcular_estatisticas(df)
+
+    # Exportar relatórios
+    if var_csv.get():
+        exportar_csv(df, os.path.join(caminho_saida, "relatorio.csv"))
+    if var_excel.get():
+        exportar_excel(df, os.path.join(caminho_saida, "relatorio.xlsx"))
+    if var_pdf.get():
+        gerar_graficos_pdf(df, opcoes_graficos, caminho_saida)
+
+    messagebox.showinfo("Concluído", "Processamento finalizado com sucesso!")
+    logging.info("Processamento finalizado.")
+
+
 def iniciar_interface():
     global entry_1
 
@@ -352,6 +426,8 @@ def iniciar_interface():
         highlightthickness = 0,
         relief = "ridge"
     )
+
+    
 
     canvas.place(x = 0, y = 0)
 
@@ -682,7 +758,7 @@ def iniciar_interface():
         image=button_image_2,
         borderwidth=0,
         highlightthickness=0,
-        command=lambda: print("button_2 clicked"),
+        command=iniciar_processamento,
         relief="flat"
     )
     button_2.place(
