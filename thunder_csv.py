@@ -1,6 +1,8 @@
 
 from typing import List, Tuple
 import pandas as pd
+from functools import partial
+import numpy as np
 import logging
 import matplotlib.pyplot as plt
 import os
@@ -9,17 +11,47 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from tempfile import NamedTemporaryFile
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import tkinter as tk
 from tkinter import Tk, Canvas, Entry, Button, PhotoImage, messagebox, filedialog
-
 
 arquivo_teste = "exemplo_thundercsv.xlsx"
 caminho_arquivo_csv = ""
 caminho_diretorio_saida = ""
+N_CHUNKS = 4
 
+def gerar_csv_teste():
+    # Gerar pequeno
+    df_pequeno = pd.DataFrame({
+        'coluna1': np.random.randint(1, 100, size=30000),
+        'coluna2': np.random.normal(50, 10, size=30000),
+        'coluna3': np.random.randint(1, 100, size=30000)
+    })
+
+    df_pequeno.to_csv('arquivo_pequeno.csv', index=False)
+    print("Arquivo pequeno gerado.")
+
+    # Gerar médio
+    df_medio = pd.DataFrame({
+        'coluna1': np.random.randint(1, 100, size=400000),
+        'coluna2': np.random.normal(50, 10, size=400000),
+        'coluna3': np.random.randint(1, 100, size=400000)
+    })
+
+    df_medio.to_csv('arquivo_medio.csv', index=False)
+    print("Arquivo medio gerado.")
+
+    # Gerar grande
+    df_grande = pd.DataFrame({
+        'coluna1': np.random.randint(1, 100, size=2000000),
+        'coluna2': np.random.normal(50, 10, size=2000000),
+        'coluna3': np.random.randint(1, 100, size=2000000)
+    })
+
+    df_grande.to_csv('arquivo_grande.csv', index=False)
+    print("Arquivo grande gerado.")
 
 def configurar_logging():
-
     """
     Configura o sistema de logging do Python.
     Cria um arquivo 'execucao_thundercsv.log' com nível INFO e formato padrão.
@@ -43,6 +75,11 @@ def selecionar_arquivo():
         print(f"Arquivo selecionado: {caminho_arquivo_csv}")
     else:
         print("Nenhum arquivo selecionado.")
+
+def arquivo_grande(caminho_arquivo: str, limite_mb: int = 10) -> bool:
+    tamanho_mb = os.path.getsize(caminho_arquivo) / (1024 * 1024)
+    return tamanho_mb > limite_mb
+
 def selecionar_diretorio():
     """
     Abre um seletor de diretório e salva o caminho de saída globalmente.
@@ -90,7 +127,6 @@ def carregar_arquivo_csv(file_path: str) -> pd.DataFrame | None:
         print(f"Erro ao carregar o arquivo: {e}")
         messagebox.showerror("Erro", f"Erro ao carregar o arquivo: {e}")
         return None
-
 
 def validar_estrutura_dados(df: pd.DataFrame, colunas_numericas_esperadas: List[str] = None, interromper_em_erro: bool = False) -> Tuple[bool, pd.DataFrame]:
     """
@@ -340,8 +376,9 @@ def gerar_graficos_pdf(df: pd.DataFrame, opcoes: dict, pasta_saida: str, nome_pd
         if opcoes.get("boxplot"):
             with NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 plt.figure()
-                plt.boxplot(df[coluna].dropna())
+                plt.boxplot(df[coluna].dropna(), vert=False, labels=[coluna])
                 plt.title(f"Boxplot - {coluna}")
+                plt.xlabel(coluna)
                 plt.savefig(tmp.name)
                 plt.close()
                 elementos.append(RLImage(tmp.name, width=400, height=300))
@@ -357,7 +394,7 @@ def gerar_graficos_pdf(df: pd.DataFrame, opcoes: dict, pasta_saida: str, nome_pd
                 elementos.append(RLImage(tmp.name, width=400, height=300))
                 elementos.append(Spacer(1, 12))
 
-        if opcoes.get("bar"):
+        if opcoes.get("bar") and df[coluna].nunique() <= 20:
             with NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 plt.figure()
                 df[coluna].value_counts().sort_index().plot(kind="bar", color="lightgreen", edgecolor="black")
@@ -381,10 +418,11 @@ def exportar_excel(df: pd.DataFrame, caminho: str):
     try:
         df.to_excel(caminho, index=False)
         print(f"Excel salvo em: {caminho}")
+        logging.info(f"Relatório Excel exportado para: {caminho}")
         messagebox.showinfo("Sucesso", "Excel salvo com sucesso!")
-        logging.info(f"Relatório CSV exportado para: {caminho}")
+        
     except Exception as e:
-        logging.error(f"Erro ao exportar CSV: {e}")
+        logging.error(f"Erro ao exportar Excel: {e}")
         messagebox.showerror("Erro", f"Erro ao salvar Excel: {e}")
 
 def exportar_csv(df: pd.DataFrame, caminho: str):
@@ -397,11 +435,33 @@ def exportar_csv(df: pd.DataFrame, caminho: str):
     try:
         df.to_csv(caminho, index=False)
         print(f"CSV salvo em: {caminho}")
-        logging.info(f"Relatório Excel exportado para: {caminho}")
+        logging.info(f"Relatório CSV exportado para: {caminho}")
         messagebox.showinfo("Sucesso", "CSV salvo com sucesso!")
     except Exception as e:
-        logging.error(f"Erro ao exportar Excel: {e}")
+        logging.error(f"Erro ao exportar CSV: {e}")
         messagebox.showerror("Erro", f"Erro ao salvar CSV: {e}")
+
+def dividir_em_chunks(df: pd.DataFrame, n_chunks: int) -> List[pd.DataFrame]:
+    return np.array_split(df, n_chunks)
+
+def processar_chunk(chunk: pd.DataFrame, metodo: str, colunas: list) -> pd.DataFrame:
+    chunk, _ = detectar_outliers(chunk, metodo, colunas)
+    return chunk
+
+def processar_em_threads(df: pd.DataFrame, funcao_processamento, n_threads=4):
+    chunks = dividir_em_chunks(df, n_threads)
+    with ThreadPoolExecutor(max_workers=n_threads) as executor:
+        resultados = list(executor.map(funcao_processamento, chunks))
+    return pd.concat(resultados)
+
+def processar_em_processos(df: pd.DataFrame, funcao_processamento, n_chunks=4):
+    chunks = dividir_em_chunks(df, n_chunks)
+    with ProcessPoolExecutor(max_workers=n_chunks) as executor:
+        resultados = list(executor.map(funcao_processamento, chunks))
+    return pd.concat(resultados)
+
+def funcao_processamento_outliers(chunk: pd.DataFrame, metodo: str, colunas: list) -> pd.DataFrame:
+    return detectar_outliers(chunk, metodo, colunas)[0]
 
 def iniciar_processamento():
 
@@ -423,7 +483,7 @@ def iniciar_processamento():
     if not caminho_csv or not caminho_saida:
         messagebox.showwarning("Aviso", "Por favor, selecione o arquivo CSV e o diretório de saída.")
         return
-
+    
     colunas = entry_1.get().split(",")
     metodo = metodo_outlier.get()
     opcoes_graficos = {
@@ -448,7 +508,20 @@ def iniciar_processamento():
     if df is None:
         return
 
-    df, stats_outliers = detectar_outliers(df, metodo, colunas)
+    n_linhas = len(df)
+
+    if len(df) < 50_000:
+        print("Usando processamento sequencial (arquivo pequeno)...")
+        df = processar_em_threads(df, partial(funcao_processamento_outliers, metodo=metodo, colunas=colunas), n_threads=1)
+
+    elif len(df) < 500_000:
+        print("Usando multithreading (arquivo médio)...")
+        df = processar_em_threads(df, partial(funcao_processamento_outliers, metodo=metodo, colunas=colunas), n_threads=4)
+
+    else:
+        print("Usando multiprocessing (arquivo grande)...")
+        df = processar_em_processos(df, partial(funcao_processamento_outliers, metodo=metodo, colunas=colunas), n_chunks=4)
+
     stats = calcular_estatisticas(df)
 
     if var_csv.get():
@@ -460,7 +533,6 @@ def iniciar_processamento():
 
     messagebox.showinfo("Concluído", "Processamento finalizado com sucesso!")
     logging.info("Processamento finalizado.")
-
 
 def iniciar_interface():
     global entry_1, var_csv, var_excel, var_pdf, var_boxplot, var_histograma, var_barras, var_logging
@@ -482,6 +554,8 @@ def iniciar_interface():
 
     root.geometry("666x470")
     root.configure(bg = "#1E1E1E")
+
+    gerar_csv_teste()
 
     # Fundo da interface
     canvas = Canvas(
@@ -532,7 +606,7 @@ def iniciar_interface():
         24.0,
         125.0,
         anchor="nw",
-        text="Selecione os arquivos CSV",
+        text="Selecione o arquivo CSV",
         fill="#FFFFFF",
         font=("Jersey 20", 16 * -1)
     )
