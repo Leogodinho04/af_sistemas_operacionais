@@ -1,6 +1,7 @@
 
 from typing import List, Tuple
 import pandas as pd
+import logging
 import matplotlib.pyplot as plt
 import os
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage
@@ -9,43 +10,87 @@ from reportlab.lib.styles import getSampleStyleSheet
 from tempfile import NamedTemporaryFile
 from pathlib import Path
 import tkinter as tk
-from tkinter import Tk, Canvas, Entry, Button, PhotoImage
+from tkinter import Tk, Canvas, Entry, Button, PhotoImage, messagebox, filedialog
+
 
 arquivo_teste = "exemplo_thundercsv.xlsx"
+caminho_arquivo_csv = ""
+caminho_diretorio_saida = ""
+
+
+def configurar_logging():
+
+    """
+    Configura o sistema de logging do Python.
+    Cria um arquivo 'execucao_thundercsv.log' com nível INFO e formato padrão.
+    """
+
+    logging.basicConfig(
+        filename='execucao_thundercsv.log',
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+
+def selecionar_arquivo():
+    """
+    Abre um seletor de arquivos para escolher um arquivo CSV ou XLSX e salva o caminho globalmente.
+    """
+    global caminho_arquivo_csv
+    caminho_arquivo_csv = filedialog.askopenfilename(
+        filetypes=[("Arquivos CSV ou Excel", "*.csv *.xlsx"), ("Todos os arquivos", "*.*")]
+    )
+    if caminho_arquivo_csv:
+        print(f"Arquivo selecionado: {caminho_arquivo_csv}")
+    else:
+        print("Nenhum arquivo selecionado.")
+def selecionar_diretorio():
+    """
+    Abre um seletor de diretório e salva o caminho de saída globalmente.
+    Isso define onde os relatórios exportados serão salvos.
+    """
+    global caminho_diretorio_saida
+    caminho_diretorio_saida = filedialog.askdirectory()
+    if caminho_diretorio_saida:
+        print(f"Diretório selecionado: {caminho_diretorio_saida}")
+    else:
+        print("Nenhum diretório selecionado.")
 
 def carregar_arquivo_csv(file_path: str) -> pd.DataFrame | None:
     """
-    Lê um arquivo CSV e retorna um DataFrame do pandas.
-    Trata erros comuns de leitura de CSV.
-
-    Args:
-        file_path (str): O caminho completo para o arquivo CSV.
-
-    Returns:
-        pd.DataFrame | None: O DataFrame lido ou None se houver um erro.
+    Carrega um arquivo .csv ou .xlsx e retorna um DataFrame pandas.
+    Detecta a extensão e tenta diferentes codificações para evitar erros.
     """
     if not os.path.exists(file_path):
-        print(f"Erro: O arquivo não foi encontrado no caminho '{file_path}'.")
+        print(f"Erro: O arquivo não foi encontrado em '{file_path}'.")
         return None
-    
+
     if not os.path.isfile(file_path):
         print(f"Erro: O caminho '{file_path}' não aponta para um arquivo válido.")
         return None
 
+    extensao = Path(file_path).suffix.lower()
+
     try:
-        df = pd.read_csv(file_path)
-        print(f"Arquivo '{os.path.basename(file_path)}' lido com sucesso.")
-        return df
-    except pd.errors.EmptyDataError:
-        print(f"Erro: O arquivo '{os.path.basename(file_path)}' está vazio.")
-        return None
-    except pd.errors.ParserError as e:
-        print(f"Erro de parsing no arquivo '{os.path.basename(file_path)}': {e}")
-        print("Verifique se o arquivo está bem formatado e se o delimitador está correto (geralmente vírgula).")
-        return None
+        if extensao == ".csv":
+            try:
+                return pd.read_csv(file_path, encoding='utf-8', sep=',', on_bad_lines='skip')
+            except UnicodeDecodeError:
+                print("UTF-8 falhou. Tentando latin1...")
+                try:
+                    return pd.read_csv(file_path, encoding='latin1', sep=',', on_bad_lines='skip')
+                except Exception:
+                    print("latin1 falhou. Tentando windows-1252...")
+                    return pd.read_csv(file_path, encoding='windows-1252', sep=',', on_bad_lines='skip')
+        elif extensao == ".xlsx":
+            return pd.read_excel(file_path)
+        else:
+            messagebox.showerror("Erro", "Formato de arquivo não suportado. Use CSV ou XLSX.")
+            return None
     except Exception as e:
-        print(f"Um erro inesperado ocorreu ao ler o arquivo '{os.path.basename(file_path)}': {e}")
+        print(f"Erro ao carregar o arquivo: {e}")
+        messagebox.showerror("Erro", f"Erro ao carregar o arquivo: {e}")
         return None
+
 
 def validar_estrutura_dados(df: pd.DataFrame, colunas_numericas_esperadas: List[str] = None, interromper_em_erro: bool = False) -> Tuple[bool, pd.DataFrame]:
     """
@@ -145,6 +190,7 @@ def validar_estrutura_dados(df: pd.DataFrame, colunas_numericas_esperadas: List[
     
     if valido:
         print("\nValidação da estrutura dos dados concluída: OK.")
+        messagebox.showinfo("Sucesso", "Validação da estrutura dos dados concluída")
     else:
         print("\nValidação da estrutura dos dados concluída: COM AVISOS/ERROS. Verifique as mensagens acima.")
     
@@ -325,8 +371,99 @@ def gerar_graficos_pdf(df: pd.DataFrame, opcoes: dict, pasta_saida: str, nome_pd
     doc.build(elementos)
     print(f"PDF com gráficos salvo em: {pdf_path}")
 
+def exportar_excel(df: pd.DataFrame, caminho: str):
+
+    """
+    Exporta um DataFrame como arquivo Excel (.xlsx) para o caminho fornecido.
+    Inclui mensagens de sucesso ou erro e logging.
+    """
+
+    try:
+        df.to_excel(caminho, index=False)
+        print(f"Excel salvo em: {caminho}")
+        messagebox.showinfo("Sucesso", "Excel salvo com sucesso!")
+        logging.info(f"Relatório CSV exportado para: {caminho}")
+    except Exception as e:
+        logging.error(f"Erro ao exportar CSV: {e}")
+        messagebox.showerror("Erro", f"Erro ao salvar Excel: {e}")
+
+def exportar_csv(df: pd.DataFrame, caminho: str):
+
+    """
+    Exporta um DataFrame como arquivo CSV para o caminho fornecido.
+    Inclui mensagens de sucesso ou erro e logging.
+    """
+
+    try:
+        df.to_csv(caminho, index=False)
+        print(f"CSV salvo em: {caminho}")
+        logging.info(f"Relatório Excel exportado para: {caminho}")
+        messagebox.showinfo("Sucesso", "CSV salvo com sucesso!")
+    except Exception as e:
+        logging.error(f"Erro ao exportar Excel: {e}")
+        messagebox.showerror("Erro", f"Erro ao salvar CSV: {e}")
+
+def iniciar_processamento():
+
+    """
+    Função principal que executa o pipeline de análise de dados.
+    - Coleta os caminhos de entrada e saída definidos pelo usuário.
+    - Lê o arquivo CSV ou XLSX e valida a estrutura das colunas.
+    - Aplica o método de detecção de outliers selecionado.
+    - Calcula estatísticas descritivas e gera relatórios em CSV, Excel e PDF.
+    - Registra logs e exibe mensagens de conclusão ou erro.
+    """
+
+    global entry_1, var_csv, var_excel, var_pdf, var_boxplot, var_histograma, var_barras, var_logging, metodo_outlier
+    global caminho_arquivo_csv, caminho_diretorio_saida
+
+    caminho_csv = caminho_arquivo_csv
+    caminho_saida = caminho_diretorio_saida
+
+    if not caminho_csv or not caminho_saida:
+        messagebox.showwarning("Aviso", "Por favor, selecione o arquivo CSV e o diretório de saída.")
+        return
+
+    colunas = entry_1.get().split(",")
+    metodo = metodo_outlier.get()
+    opcoes_graficos = {
+        "boxplot": var_boxplot.get(),
+        "hist": var_histograma.get(),
+        "bar": var_barras.get()
+    }
+
+    if var_logging.get():
+        configurar_logging()
+        logging.info("Execução iniciada.")
+
+    df = carregar_arquivo_csv(caminho_csv)
+    if df is None:
+        return
+
+    valido, df = validar_estrutura_dados(df, colunas, interromper_em_erro=True)
+    if not valido:
+        return
+
+    df = filtrar_colunas(df, colunas)
+    if df is None:
+        return
+
+    df, stats_outliers = detectar_outliers(df, metodo, colunas)
+    stats = calcular_estatisticas(df)
+
+    if var_csv.get():
+        exportar_csv(df, os.path.join(caminho_saida, "relatorio.csv"))
+    if var_excel.get():
+        exportar_excel(df, os.path.join(caminho_saida, "relatorio.xlsx"))
+    if var_pdf.get():
+        gerar_graficos_pdf(df, opcoes_graficos, caminho_saida)
+
+    messagebox.showinfo("Concluído", "Processamento finalizado com sucesso!")
+    logging.info("Processamento finalizado.")
+
+
 def iniciar_interface():
-    global entry_1
+    global entry_1, var_csv, var_excel, var_pdf, var_boxplot, var_histograma, var_barras, var_logging
 
     OUTPUT_PATH = Path(__file__).parent
     ASSETS_PATH = OUTPUT_PATH / "build" / "assets" / "frame0"
@@ -338,7 +475,11 @@ def iniciar_interface():
     root = Tk()
 
     root.title("ThunderCSV - Processador de Arquivos")
-    root.iconbitmap(relative_to_assets("thunder_csv.ico"))
+    try:
+        root.iconbitmap(relative_to_assets("thunder_csv.ico"))
+    except tk.TclError:
+        print("Aviso: Ícone não encontrado ou inválido. Continuando sem ícone.")
+
     root.geometry("666x470")
     root.configure(bg = "#1E1E1E")
 
@@ -352,6 +493,8 @@ def iniciar_interface():
         highlightthickness = 0,
         relief = "ridge"
     )
+
+    
 
     canvas.place(x = 0, y = 0)
 
@@ -400,9 +543,10 @@ def iniciar_interface():
         image=button_image_1,
         borderwidth=0,
         highlightthickness=0,
-        command=lambda: print("button_1 clicked"),
+        command=selecionar_arquivo,
         relief="flat"
     )
+
     button_1.place(
         x=192.0,
         y=124.0,
@@ -426,7 +570,7 @@ def iniciar_interface():
         image=button_image_3,
         borderwidth=0,
         highlightthickness=0,
-        command=lambda: print("button_3 clicked"),
+        command=selecionar_diretorio,
         relief="flat"
     )
     button_3.place(
@@ -477,7 +621,9 @@ def iniciar_interface():
         font=("Jersey 20", 16 * -1)
     )
 
+    global metodo_outlier
     metodo_outlier = tk.StringVar(value="")
+
 
     radio_iqr = tk.Radiobutton(
         root,
@@ -682,7 +828,7 @@ def iniciar_interface():
         image=button_image_2,
         borderwidth=0,
         highlightthickness=0,
-        command=lambda: print("button_2 clicked"),
+        command=iniciar_processamento,
         relief="flat"
     )
     button_2.place(
